@@ -1,0 +1,31 @@
+#!/bin/bash
+
+echo "Starting uninstallation of hcpp-redis..."
+
+# 1. Find all Hestia users and stop/disable their Redis services.
+#    We iterate through the home directories as a reliable way to find users.
+for user in $(ls /home); do
+    if [ -d "/home/$user/redis" ]; then
+        echo "Disabling Redis for user: $user"
+        # The --now flag stops the service immediately and disables it.
+        systemctl disable --now redis-user@$user.service >/dev/null 2>&1
+        
+        echo "Removing Redis directory for user: $user"
+        rm -rf /home/$user/redis
+    fi
+done
+
+# 2. Remove the systemd template file.
+echo "Removing systemd service template..."
+rm -f /etc/systemd/system/redis-user@.service
+
+# 3. Reload the systemd daemon to apply the changes.
+echo "Reloading systemd daemon..."
+systemctl daemon-reload
+
+# 4. (Optional) Remove the Redis server package itself.
+#    Uncomment the line below if you want to completely remove Redis from the system.
+# echo "Purging redis-server package..."
+# apt-get remove --purge -y redis-server
+
+echo "hcpp-redis uninstallation complete."

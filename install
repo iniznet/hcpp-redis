@@ -1,0 +1,47 @@
+#!/bin/bash
+export DEBIAN_FRONTEND=noninteractive
+
+# 1. Install Redis server
+apt-get update
+apt-get install -y redis-server
+
+# 2. Stop and disable the default global Redis instance. We want per-user instances.
+systemctl stop redis-server
+systemctl disable redis-server
+
+# 3. Create the systemd template file for per-user Redis services.
+cat > /etc/systemd/system/redis-user@.service << EOL
+[Unit]
+Description=Redis for user %i
+After=network.target
+
+[Service]
+User=%i
+Group=%i
+Type=forking
+ExecStart=/usr/bin/redis-server /home/%i/redis/redis.conf
+ExecStop=/usr/bin/redis-cli -s /home/%i/redis/redis.sock shutdown
+Restart=always
+# Add security hardening
+PrivateTmp=true
+ProtectSystem=full
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target
+EOL
+
+# 4. Reload systemd to recognize the new template.
+systemctl daemon-reload
+
+# 5. Create the directory for package-specific configurations.
+mkdir -p /usr/local/hestia/plugins/redis/packages
+
+# 6. Create a default configuration file.
+cat > /usr/local/hestia/plugins/redis/packages/default.conf << EOL
+# Redis configuration for the 'default' package
+maxmemory 64mb
+maxmemory-policy allkeys-lru
+EOL
+
+echo "hcpp-redis installation complete."
