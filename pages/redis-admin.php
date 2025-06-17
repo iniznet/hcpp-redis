@@ -1,9 +1,11 @@
 <?php
+// Admin access check
 if (!isset($_SESSION['userContext']) || $_SESSION['userContext'] !== 'admin') {
     header("Location: /");
     exit();
 }
 
+// Form submission handler for package management
 if (!empty($_POST['action'])) {
     if ($_POST['action'] === 'save') {
         $name = $_POST['package_name'];
@@ -18,9 +20,11 @@ if (!empty($_POST['action'])) {
     exit();
 }
 
+// Fetch existing packages from the backend
 $packages_json = $hcpp->run("v-invoke-plugin redis-admin get_packages");
 $packages = json_decode($packages_json, true);
 
+// Setup edit mode if requested via GET parameter
 $edit_mode = false;
 $edit_package = ['name' => '', 'content' => 'maxmemory 128mb' . "\n" . 'maxmemory-policy allkeys-lru'];
 if (!empty($_GET['edit'])) {
@@ -32,7 +36,7 @@ if (!empty($_GET['edit'])) {
     }
 }
 
-// Check for disabled functions.
+// Check for disabled PHP functions that might affect plugin operation
 $disabled_functions = $hcpp->redismanager->check_required_functions();
 ?>
 
@@ -51,7 +55,7 @@ $disabled_functions = $hcpp->redismanager->check_required_functions();
 <div class="container">
 
     <?php
-    // Display a warning if required functions are disabled.
+    // Display warning if required functions are disabled
     if (!empty($disabled_functions)):
     ?>
     <div class="alert alert-danger u-mb20">
@@ -81,7 +85,7 @@ $disabled_functions = $hcpp->redismanager->check_required_functions();
             <div class="units-table-cell"><pre style="margin:0;"><?= htmlspecialchars($content) ?></pre></div>
             <div class="units-table-cell u-text-right">
                 <a href="?p=redis-admin&edit=<?= urlencode($name) ?>" class="button button-secondary">Edit</a>
-                <?php if ($name !== 'default'): ?>
+                <?php if ($name !== 'default'): // Prevent deletion of the default package ?>
                 <form method="post" style="display:inline-block;" onsubmit="return confirm('Are you sure you want to delete this package?');">
                     <input type="hidden" name="action" value="delete">
                     <input type="hidden" name="package_name" value="<?= htmlspecialchars($name) ?>">
