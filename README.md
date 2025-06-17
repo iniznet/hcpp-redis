@@ -49,6 +49,8 @@ The plugin creates a `systemd` service template that can start a Redis instance 
 3.  Clone this repository.
     ```bash
     sudo git clone https://github.com/iniznet/hcpp-redis.git redis
+    chmod +x /usr/local/hestia/plugins/redis/install
+    chmod +x /usr/local/hestia/plugins/redis/uninstall
     ```
 4.  The plugin's installation script will be triggered automatically the next time an admin logs into the Hestia UI or saves the server configuration. To run it manually:
     ```bash

@@ -2,7 +2,7 @@
 if (!class_exists('RedisManager')) {
     class RedisManager extends HCPP_Hooks
     {
-        public function __construct()
+public function __construct()
         {
             global $hcpp;
             // Hook into user management events
@@ -13,11 +13,9 @@ if (!class_exists('RedisManager')) {
             // Hook for UI actions
             $hcpp->add_action('hcpp_invoke_plugin', [$this, 'handle_invocations']);
 
-            // Add our custom page to the UI
+            // Add custom pages to the UI
             $hcpp->add_custom_page('redis', __DIR__ . '/pages/redis.php');
-
-            // Optional: Add a Redis icon to the user list page for quick status
-            $hcpp->add_action('hcpp_list_user_xpath', [$this, 'add_user_list_icon']);
+            $hcpp->add_custom_page('redis-admin', __DIR__ . '/pages/redis-admin.php');
         }
 
         /**
@@ -104,35 +102,89 @@ dir {$user_redis_dir}
          */
         public function handle_invocations($args)
         {
-            if ($args[0] !== 'redis') return $args;
+            // Route user-facing actions
+            if ($args[0] === 'redis') {
+                $action = $args[1];
+                $user = $args[2]; // The user performing the action
 
-            $action = $args[1];
-            $user = $args[2]; // The user performing the action
+                switch ($action) {
+                    case 'enable':
+                        shell_exec("systemctl enable --now redis-user@{$user}.service");
+                        break;
+                    case 'disable':
+                        shell_exec("systemctl disable --now redis-user@{$user}.service");
+                        break;
+                    case 'restart':
+                        shell_exec("systemctl restart redis-user@{$user}.service");
+                        break;
+                    case 'get_status':
+                        $status = trim(shell_exec("systemctl is-active redis-user@{$user}.service"));
+                        $socket = "/home/{$user}/redis/redis.sock";
+                        $info = shell_exec("redis-cli -s {$socket} INFO memory 2>/dev/null");
+                        
+                        preg_match('/used_memory_human:(.*)/', $info, $matches);
+                        $memory = trim($matches[1] ?? 'N/A');
 
-            switch ($action) {
-                case 'enable':
-                    shell_exec("systemctl enable --now redis-user@{$user}.service");
-                    break;
-                case 'disable':
-                    shell_exec("systemctl disable --now redis-user@{$user}.service");
-                    break;
-                case 'restart':
-                    shell_exec("systemctl restart redis-user@{$user}.service");
-                    break;
-                case 'get_status':
-                    $status = trim(shell_exec("systemctl is-active redis-user@{$user}.service"));
-                    $socket = "/home/{$user}/redis/redis.sock";
-                    $info = shell_exec("redis-cli -s {$socket} INFO memory 2>/dev/null");
-                    
-                    preg_match('/used_memory_human:(.*)/', $info, $matches);
-                    $memory = trim($matches[1] ?? 'N/A');
+                        echo json_encode(['status' => $status, 'memory' => $memory]);
+                        break;
+                }
+            }
 
-                    echo json_encode(['status' => $status, 'memory' => $memory]);
-                    break;
+            // *** NEW: Route admin-facing actions ***
+            if ($args[0] === 'redis-admin') {
+                // SECURITY: Ensure only the admin user can perform these actions
+                if (posix_getpwuid(posix_getuid())['name'] !== 'root') {
+                    echo "Error: Permission denied.";
+                    exit(1);
+                }
+
+                $action = $args[1];
+                $packages_dir = __DIR__ . '/packages/';
+
+                switch ($action) {
+                    case 'get_packages':
+                        $files = glob($packages_dir . '*.conf');
+                        $packages = [];
+                        foreach ($files as $file) {
+                            $name = basename($file, '.conf');
+                            $packages[$name] = file_get_contents($file);
+                        }
+                        echo json_encode($packages);
+                        break;
+
+                    case 'save_package':
+                        $name = $args[2];
+                        $content = $args[3];
+                        // Sanitize name to prevent directory traversal
+                        $sane_name = preg_replace('/[^a-zA-Z0-9_-]/', '', $name);
+                        if (empty($sane_name)) {
+                            echo "Error: Invalid package name.";
+                            exit(1);
+                        }
+                        file_put_contents($packages_dir . $sane_name . '.conf', $content);
+                        echo "Package '{$sane_name}' saved.";
+                        break;
+
+                    case 'delete_package':
+                        $name = $args[2];
+                        // SECURITY: Never allow deleting the default package
+                        if ($name === 'default') {
+                            echo "Error: Cannot delete the default package.";
+                            exit(1);
+                        }
+                        $sane_name = preg_replace('/[^a-zA-Z0-9_-]/', '', $name);
+                        $file_path = $packages_dir . $sane_name . '.conf';
+                        if (file_exists($file_path)) {
+                            unlink($file_path);
+                            echo "Package '{$sane_name}' deleted.";
+                        }
+                        break;
+                }
             }
             return $args;
         }
     }
+
     global $hcpp;
     $hcpp->register_plugin(RedisManager::class);
 }

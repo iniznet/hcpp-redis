@@ -23,6 +23,16 @@ if (isset($_POST['action'])) {
 
 <!-- Main Content -->
 <div class="container">
+
+    <?php if ($_SESSION['user'] === 'admin'): ?>
+    <div class="alert alert-info u-mb20">
+        <i class="fas fa-user-shield"></i>
+        <div style="margin-left: 10px; display: inline-block;">
+            You are logged in as admin. <a href="?p=redis-admin">Click here to manage Redis packages.</a>
+        </div>
+    </div>
+    <?php endif; ?>
+
     <div id="redis-status-card" class="u-mb20">
         <h1 class="u-mb10">Redis Management</h1>
         <p>Manage your personal Redis instance here. Your application can connect using the UNIX socket path provided below.</p>
