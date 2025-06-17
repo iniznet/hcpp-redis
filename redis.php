@@ -11,6 +11,7 @@ public function __construct()
             $hcpp->add_action('v_delete_user', [$this, 'on_user_delete']);
 
             // Hook for UI actions
+            $hcpp->add_action('hcpp_list_web_xpath', [$this, 'hcpp_list_web_xpath']);
             $hcpp->add_action('hcpp_invoke_plugin', [$this, 'handle_invocations']);
 
             // Add custom pages to the UI
@@ -95,6 +96,41 @@ dir {$user_redis_dir}
             chmod($conf_path, 0644);
 
             $hcpp->log("Secured redis.conf for {$user} with root ownership.");
+        }
+
+        /**
+         * Adds a "Redis" button to the web domain management page.
+         * This will appear next to the "Add Web Domain" button.
+         */
+        public function hcpp_list_web_xpath($xpath)
+        {
+            // Find the "Add Web Domain" button to use as an anchor for our new button.
+            $addWebButton = $xpath->query("//a[@href='/add/web/']")->item(0);
+
+            if ($addWebButton) {
+                // Create the new "Redis" button element
+                $newButton = $xpath->document->createElement('a');
+                $newButton->setAttribute('href', '?p=redis');
+                $newButton->setAttribute('class', 'button button-secondary');
+                $newButton->setAttribute('title', 'Redis Management');
+
+                // Create the icon element (a red circle for Redis)
+                $icon = $xpath->document->createElement('span', '&#11042;');
+                $icon->setAttribute('style', 'font-size:x-large;color:red;margin:-2px 4px 0 0;');
+
+                // Create the text for the button
+                $text = $xpath->document->createTextNode('Redis');
+
+                // Append the icon and text to the new button
+                $newButton->appendChild($icon);
+                $newButton->appendChild($text);
+
+                // Insert the new button into the DOM, right after the "Add Web Domain" button.
+                // We use nextSibling to place it neatly in the button group.
+                $addWebButton->parentNode->insertBefore($newButton, $addWebButton->nextSibling);
+            }
+
+            return $xpath;
         }
 
         /**
