@@ -288,6 +288,21 @@ if (!class_exists('RedisManager')) {
                         }
                         
                         file_put_contents($packages_dir . $sane_name . '.conf', $content);
+
+                        // After saving, find all users with this package and update their configs.
+                        global $hcpp;
+                        $all_users_json = shell_exec("/usr/local/hestia/bin/v-list-users json");
+                        $all_users = json_decode($all_users_json, true);
+
+                        foreach ($all_users as $username => $details) {
+                            if (isset($details['PACKAGE']) && $details['PACKAGE'] === $sane_name) {
+                                // This user matches the package we just saved.
+                                // Regenerate their config to apply the new settings.
+                                $hcpp->log("Updating Redis config for user {$username} due to package '{$sane_name}' update.");
+                                $this->generate_redis_config($username, $sane_name);
+                            }
+                        }
+
                         break;
                         
                     case 'delete_package':
