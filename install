@@ -5,7 +5,7 @@ export DEBIAN_FRONTEND=noninteractive
 apt-get update
 apt-get install -y redis-server
 
-# 2. Stop and disable the default global Redis instance. We want per-user instances.
+# 2. Stop and disable the default global Redis instance.
 systemctl stop redis-server
 systemctl disable redis-server
 
@@ -18,11 +18,10 @@ After=network.target
 [Service]
 User=%i
 Group=%i
-Type=forking
-ExecStart=/usr/bin/redis-server /home/%i/redis/redis.conf
+Type=simple
+ExecStart=/usr/bin/redis-server /home/%i/redis/redis.conf --supervised systemd
 ExecStop=/usr/bin/redis-cli -s /home/%i/redis/redis.sock shutdown
 Restart=always
-# Add security hardening
 PrivateTmp=true
 ProtectSystem=full
 NoNewPrivileges=true
