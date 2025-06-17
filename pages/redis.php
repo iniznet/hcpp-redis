@@ -1,4 +1,15 @@
 <?php
+/**
+ * User Redis Service Management Page
+ * 
+ * This page allows users to manage their personal Redis instance,
+ * including starting, stopping, and monitoring the service.
+ */
+
+// ===============================================================
+// USER AND CONTEXT SETUP
+// ===============================================================
+
 // Determine the effective user (accounting for admin "look" sessions)
 $effective_user = (isset($_SESSION['look']) && !empty($_SESSION['look']))
     ? $_SESSION['look']
@@ -10,10 +21,16 @@ if (!is_dir($user_redis_dir)) {
     $hcpp->run("v-invoke-plugin redis provision_user " . escapeshellarg($effective_user));
 }
 
+// ===============================================================
+// FORM SUBMISSIONS HANDLER
+// ===============================================================
+
 // Handle Redis service actions (enable/disable/restart)
 if (isset($_POST['action'])) {
     $action = $_POST['action'];
+    // Valid actions: enable, disable, restart
     $hcpp->run("v-invoke-plugin redis {$action} " . escapeshellarg($effective_user));
+    // Redirect to prevent form resubmission
     header("Location: ?p=redis");
     exit();
 }
@@ -59,14 +76,19 @@ $disabled_functions = $hcpp->redismanager->check_required_functions();
     </div>
     <?php endif; ?>
 
+    <!-- =============================================================== -->
+    <!-- REDIS STATUS AND CONTROLS                                       -->
+    <!-- =============================================================== -->
     <div id="redis-status-card" class="u-mb20">
         <h1 class="u-mb10">Redis Management for <?= htmlspecialchars($effective_user) ?></h1>
         <p>Manage your personal Redis instance here. Your application can connect using the UNIX socket path provided below.</p>
+        
         <div class="u-mt20">
             <p><strong>Status:</strong> <span id="status-text">Loading...</span></p>
             <p><strong>Socket Path:</strong> <code>/home/<?= htmlspecialchars($effective_user) ?>/redis/redis.sock</code></p>
             <p><strong>Memory Usage:</strong> <span id="memory-text">Loading...</span></p>
         </div>
+        
         <div class="u-mt20">
             <form method="post" style="display: inline-block;">
                 <button type="submit" name="action" value="enable" class="button">Enable / Start</button>
@@ -81,12 +103,18 @@ $disabled_functions = $hcpp->redismanager->check_required_functions();
     </div>
 </div>
 
+<!-- =============================================================== -->
+<!-- AJAX STATUS UPDATER                                             -->
+<!-- =============================================================== -->
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     fetchStatus();
 });
 
-// Fetch Redis service status via AJAX
+/**
+ * Fetch Redis service status via AJAX
+ * Updates the status and memory usage information on the page
+ */
 function fetchStatus() {
     const statusEl = document.getElementById('status-text');
     const memoryEl = document.getElementById('memory-text');
@@ -97,11 +125,13 @@ function fetchStatus() {
         return response.json();
     })
     .then(data => {
+        // Update status indicator with appropriate color
         if (data.status === 'active') {
             statusEl.innerHTML = '<span style="color: green;">● Active</span>';
         } else {
             statusEl.innerHTML = '<span style="color: red;">● Inactive</span>';
         }
+        // Update memory usage display
         memoryEl.textContent = data.memory;
     })
     .catch(error => {
