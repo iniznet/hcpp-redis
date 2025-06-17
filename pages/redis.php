@@ -1,30 +1,53 @@
 <?php
-// Handle POST actions from buttons
+$effective_user = (isset($_SESSION['look']) && !empty($_SESSION['look']))
+    ? $_SESSION['look']
+    : $_SESSION['user'];
+
 if (isset($_POST['action'])) {
     $action = $_POST['action'];
-    $user = $_SESSION['user'];
-    $hcpp->run("v-invoke-plugin redis {$action} {$user}");
-    // Redirect to prevent form resubmission
+    $hcpp->run("v-invoke-plugin redis {$action} " . escapeshellarg($effective_user));
     header("Location: ?p=redis");
     exit();
 }
+
+// Check for disabled functions.
+$disabled_functions = $hcpp->redismanager->check_required_functions();
 ?>
 
 <!-- Toolbar -->
 <div class="toolbar">
-    <div class="toolbar-inner">
-        <div class="toolbar-buttons">
-            <a class="button button-secondary" href="javascript:location.reload();">
-                <i class="fas fa-rotate-right icon-green"></i>Refresh
-            </a>
-        </div>
-    </div>
+	<div class="toolbar-inner">
+		<div class="toolbar-buttons">
+			<a class="button button-secondary" href="javascript:location.reload();">
+				<i class="fas fa-rotate-right icon-green"></i>Refresh
+			</a>
+		</div>
+	</div>
 </div>
 
 <!-- Main Content -->
 <div class="container">
 
-    <?php if ($_SESSION['user'] === 'admin'): ?>
+    <?php
+    // Display a warning if required functions are disabled.
+    if (!empty($disabled_functions)):
+    ?>
+    <div class="alert alert-danger u-mb20">
+        <i class="fas fa-exclamation-triangle"></i>
+        <div style="margin-left: 10px; display: inline-block;">
+            <strong>Warning:</strong> The Redis plugin may not function correctly. The following required PHP functions are disabled in your server's configuration. Please contact your server administrator.
+            <ul>
+                <?php foreach ($disabled_functions as $function): ?>
+                    <li><code><?= htmlspecialchars($function) ?></code></li>
+                <?php endforeach; ?>
+            </ul>
+        </div>
+    </div>
+    <?php endif; ?>
+
+    <?php
+    if (isset($_SESSION['userContext']) && $_SESSION['userContext'] === 'admin'):
+    ?>
     <div class="alert alert-info u-mb20">
         <i class="fas fa-user-shield"></i>
         <div style="margin-left: 10px; display: inline-block;">
@@ -34,15 +57,13 @@ if (isset($_POST['action'])) {
     <?php endif; ?>
 
     <div id="redis-status-card" class="u-mb20">
-        <h1 class="u-mb10">Redis Management</h1>
+        <h1 class="u-mb10">Redis Management for <?= htmlspecialchars($effective_user) ?></h1>
         <p>Manage your personal Redis instance here. Your application can connect using the UNIX socket path provided below.</p>
-        
         <div class="u-mt20">
             <p><strong>Status:</strong> <span id="status-text">Loading...</span></p>
-            <p><strong>Socket Path:</strong> <code>/home/<?= $_SESSION['user'] ?>/redis/redis.sock</code></p>
+            <p><strong>Socket Path:</strong> <code>/home/<?= htmlspecialchars($effective_user) ?>/redis/redis.sock</code></p>
             <p><strong>Memory Usage:</strong> <span id="memory-text">Loading...</span></p>
         </div>
-
         <div class="u-mt20">
             <form method="post" style="display: inline-block;">
                 <button type="submit" name="action" value="enable" class="button">Enable / Start</button>
@@ -61,23 +82,14 @@ if (isset($_POST['action'])) {
 document.addEventListener('DOMContentLoaded', function() {
     fetchStatus();
 });
-
 function fetchStatus() {
     const statusEl = document.getElementById('status-text');
     const memoryEl = document.getElementById('memory-text');
-
-    // Use Hestia's API invoker to get status from our plugin
-    fetch('/api/v1/run/v-invoke-plugin', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-            cmd: 'v-invoke-plugin',
-            arg1: 'redis',
-            arg2: 'get_status',
-            arg3: '<?= $_SESSION['user'] ?>'
-        })
+    fetch('?p=redis&api=get_status')
+    .then(response => {
+        if (!response.ok) throw new Error('Network response was not ok');
+        return response.json();
     })
-    .then(response => response.json())
     .then(data => {
         if (data.status === 'active') {
             statusEl.innerHTML = '<span style="color: green;">● Active</span>';

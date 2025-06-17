@@ -1,32 +1,26 @@
 <?php
-// SECURITY: This page is for the admin user only.
-if ($_SESSION['user'] !== 'admin') {
+if (!isset($_SESSION['userContext']) || $_SESSION['userContext'] !== 'admin') {
     header("Location: /");
     exit();
 }
 
-// Handle form submissions for saving or deleting packages
 if (!empty($_POST['action'])) {
     if ($_POST['action'] === 'save') {
         $name = $_POST['package_name'];
         $content = $_POST['package_content'];
-        // Use escapeshellarg for security, even though we call run()
         $hcpp->run("v-invoke-plugin redis-admin save_package " . escapeshellarg($name) . " " . escapeshellarg($content));
     }
     if ($_POST['action'] === 'delete') {
         $name = $_POST['package_name'];
         $hcpp->run("v-invoke-plugin redis-admin delete_package " . escapeshellarg($name));
     }
-    // Redirect to prevent form resubmission on refresh
     header("Location: ?p=redis-admin");
     exit();
 }
 
-// Fetch all existing packages to display
 $packages_json = $hcpp->run("v-invoke-plugin redis-admin get_packages");
 $packages = json_decode($packages_json, true);
 
-// Check if we are editing a package
 $edit_mode = false;
 $edit_package = ['name' => '', 'content' => 'maxmemory 128mb' . "\n" . 'maxmemory-policy allkeys-lru'];
 if (!empty($_GET['edit'])) {
@@ -37,21 +31,41 @@ if (!empty($_GET['edit'])) {
         $edit_package['content'] = $packages[$edit_name];
     }
 }
+
+// Check for disabled functions.
+$disabled_functions = $hcpp->redismanager->check_required_functions();
 ?>
 
 <!-- Toolbar -->
 <div class="toolbar">
-    <div class="toolbar-inner">
-        <div class="toolbar-buttons">
-            <a class="button button-secondary button-back" href="/?p=redis">
-                <i class="fas fa-arrow-left icon-blue"></i>Back to User View
-            </a>
-        </div>
-    </div>
+	<div class="toolbar-inner">
+		<div class="toolbar-buttons">
+			<a class="button button-secondary button-back" href="/list/user/">
+				<i class="fas fa-arrow-left icon-blue"></i>Back to Users
+			</a>
+		</div>
+	</div>
 </div>
 
 <!-- Main Content -->
 <div class="container">
+
+    <?php
+    // Display a warning if required functions are disabled.
+    if (!empty($disabled_functions)):
+    ?>
+    <div class="alert alert-danger u-mb20">
+        <i class="fas fa-exclamation-triangle"></i>
+        <div style="margin-left: 10px; display: inline-block;">
+            <strong>Configuration Warning:</strong> The Redis plugin requires the following PHP functions to be enabled in `php.ini` for full functionality:
+            <ul>
+                <?php foreach ($disabled_functions as $function): ?>
+                    <li><code><?= htmlspecialchars($function) ?></code></li>
+                <?php endforeach; ?>
+            </ul>
+        </div>
+    </div>
+    <?php endif; ?>
 
     <!-- List Existing Packages -->
     <h1 class="u-mb10">Existing Redis Packages</h1>
